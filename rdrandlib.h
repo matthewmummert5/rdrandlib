@@ -105,12 +105,31 @@ int fill_buffer_int_rdrand(int* dest, int numberOfElements);
 //Fills a 64-bit long long int array of "numberOfElements" length. Returns 1 if successful, 0 if unsuccessful
 int fill_buffer_qint_rdrand(long long int* dest, int numberOfElements);
 
+//This function efficiently fills a buffer with random data by calling the 64 bit functions
+//whenever possible, and using the 8 bit functions for the remainder
+int rdrand_get_bytes(void* dest, int bytes);
+
 //This function fills a buffer with random numbers between min and max
 //without introducing the statistical bias of the modulo (%)
 //operator. It works by continuously requesting random numbers
 //until one in the desired range is found
 int fill_buffer_range_rdrand(int* dest, int numberOfElements, int min, int max);
 
-#endif
 
+
+/*Use the following functions for getting random seeds*/
+
+
+//This funciton guarentees that the DRBG will be reseeded by the entropy source between giving you random numbers
+//It works by calling the 64 bit rdrand instruction repeatedly until the entropy source reseeds the DRBG (1022 times)
+//Returns 1 if successful, 0 if unsuccessful
+int rdrand_get_seed(long long int* randomSeed);
+
+//This funciton also guarentees that the DRBG will be reseeded by the entropy source between giving you random numbers
+//Use this function to seed a CSPRNG (Cryptographically Secure Pseudorandom Number Generator)
+//You can also use this function to generate a random key for a block cipher
+//Returns 1 if successful, 0 if unsuccessful
+int rdrand_seed_CSPRNG(long long int* randomSeed, int number_of_64_bit_blocks);
+
+#endif
 
