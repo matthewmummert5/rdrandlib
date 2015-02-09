@@ -2,7 +2,7 @@
 
 Copyright (c) 2014 Matthew Mummert
 
-Version: 0.1
+Version: 0.2
 
 Developer Contact Info:
 matthewmummert5 <?/!_a_t_|!?> gmail <D _ 0 _ t> com
@@ -431,6 +431,45 @@ int fill_buffer_qint_rdrand(long long int* dest, int numberOfElements)
 
 
 
+
+//This function efficiently fills a buffer with random data by calling the 64 bit functions
+//whenever possible, and using the 8 bit functions for the remainder 
+int rdrand_get_bytes(void* dest, int bytes)
+{
+	int calls_to_64_bit;
+	int calls_to_8_bit;
+	int memory_offset;
+	long long int *ptr_64bit = dest;
+	char *ptr_8bit = dest;
+
+	calls_to_64_bit = bytes / 8;
+	calls_to_8_bit = bytes % 8;
+
+	memory_offset = bytes - calls_to_8_bit;
+
+	if ( RDRAND_FAIL == fill_buffer_qint_rdrand( ptr_64bit, calls_to_64_bit) )
+	{
+		//return "0" to indicate RDRAND failed to generate a random number
+		return RDRAND_FAIL;
+	}
+
+	if ( RDRAND_FAIL == fill_buffer_char_rdrand((ptr_8bit + memory_offset), calls_to_8_bit) )
+	{
+		//return "0" to indicate RDRAND failed to generate a random number
+		return RDRAND_FAIL;
+	}
+
+	
+	return RDRAND_SUCCESS;
+
+
+
+}
+
+
+
+
+
 //This function fills a buffer with random numbers between min and max
 //without introducing the statistical bias of the modulo (%)
 //operator. It works by continuously summoning random numbers
@@ -463,3 +502,69 @@ int fill_buffer_range_rdrand(int* dest, int numberOfElements, int min, int max)
 
 }
 
+int rdrand_get_seed(long long int* randomSeed)
+{
+	int i;
+	int j;
+	long long int temp;
+	long long int* temp_ptr = &temp;
+	unsigned char success = RDRAND_FAIL;
+
+	//invoking the 64-bit rdrand 1022 consecutive times guarentees that the DRBG will be reseeded
+	for (i = 0; i < 1022; i++)
+		{
+			for( j = 0; j < retry_limit; j++ )
+			{
+				
+
+				//Assembly code that invokes rdrand instruction and stores the result in variable "temp"
+				//Checks carry flag to ensure operation was successful, and stores the result in variable "success"
+				//We need to use assembly here instead of calling _rdrand64() to guarentee this section will not be 
+				//optimized out by the compiler
+				asm volatile("rdrand %0 ; setc %1"
+
+	    			: "=r" (*temp_ptr), "=qm" (success));
+
+
+
+				if (RDRAND_SUCCESS == (int) success)
+				{
+					*randomSeed = temp;
+					success = RDRAND_SUCCESS;
+					break;
+				}
+
+			}
+			
+			
+		}
+
+	return success;
+}
+
+//This funciton also guarentees that the DRBG will be reseeded by the entropy source between giving you random numbers
+//Use this function to seed a CSPRNG (Cryptographically Secure Pseudorandom Number Generator)
+//You can also use this function to generate a random key for a block cipher
+//Returns 1 if successful, 0 if unsuccessful
+int rdrand_seed_CSPRNG(long long int* randomSeed, int number_of_64_bit_blocks)
+{
+	int i;
+	long long int temp;
+	for( i = 0; i < number_of_64_bit_blocks; i++ )
+	{
+		//retrieves the random number
+		//If the operation was unsuccessful, returns from the function.
+		if (RDRAND_FAIL == rdrand_get_seed(&temp))
+		{
+			//returns "0" indicating that filling the buffer with random numbers failed
+			return RDRAND_FAIL;
+		}
+
+		//If operation was successful, places random number into the next entry in the array
+		else
+		{
+			randomSeed[i] = temp;
+		}
+	}
+	return RDRAND_SUCCESS;
+}
